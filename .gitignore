@@ -1,0 +1,9 @@
+auto-save-list
+backups
+recentf
+.custom.el
+.emacs.desktop
+.emacs.desktop.lock
+.gitattributes
+config.el
+config.el~

@@ -1,0 +1,404 @@
+#+TITLE: Emacs Configuration
+#+AUTHOR: Oakenhold
+#+PROPERTY: header-args:emacs-lisp :tangle yes
+
+* Table of Contents                                                     :TOC:
+- [[#introduction][Introduction]]
+- [[#initialization][Initialization]]
+  - [[#packages-sources][Packages Sources]]
+  - [[#prepare-use-package][Prepare Use Package]]
+  - [[#re-write-initel-on-modification][Re-write init.el on Modification]]
+- [[#bootstrap][Bootstrap]]
+  - [[#use-better-defaults][Use better defaults]]
+  - [[#backup-handling][Backup Handling]]
+  - [[#load-customel][Load =.custom.el=]]
+  - [[#delighted-settings][Delighted Settings]]
+- [[#theme][Theme]]
+- [[#features][Features]]
+  - [[#auto-completion][Auto-Completion]]
+  - [[#buffers-and-windows][Buffers and Windows]]
+  - [[#helm][Helm]]
+  - [[#magit][Magit]]
+  - [[#qol-packages][QoL Packages]]
+- [[#org][Org]]
+  - [[#org-configurations][Org Configurations]]
+  - [[#holidays][Holidays]]
+
+* Introduction
+
+My GNU Emacs configuration file is documented in the form of an [[https://orgmode.org/][Org]] file which
+is [[https://orgmode.org/manual/Extracting-source-code.html][tangled]]. This would be continuously changing as I'm exploring Emacs and the
+vast number of packages available.
+
+Credits:
+- [[https://github.com/freetonik/emacs-dotfiles][freetonik]]
+- [[https://github.com/sachac/.emacs.d][sachac]]
+- [[https://github.com/angrybacon/dotemacs][angrybacon]]
+- [[https://github.com/rememberYou/.emacs.d][rememberYou]]
+
+* Initialization
+
+** Packages Sources
+
+In order to install packages, it is useful to configure the package sources.
+
+#+BEGIN_SRC emacs-lisp
+(require 'package)
+  (setq-default
+   load-prefer-newer t
+   package-enable-at-startup nil)
+  (add-to-list 'package-archives '("gnu" . "http://elpa.gnu.org/packages/") t)
+  (add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/") t)
+  (add-to-list 'package-archives '("org" . "http://orgmode.org/elpa/") t)
+  (package-initialize)
+#+END_SRC
+
+** Prepare Use Package
+
+To be able to manage its configuration with =use-package= it is necessary to
+first install it, if you don't already.
+
+#+BEGIN_SRC emacs-lisp
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+(use-package delight :ensure t)
+(use-package use-package-ensure-system-package :ensure t)
+#+END_SRC
+
+** Re-write init.el on Modification
+
+If the current buffer is 'init.org' the code-blocks are tangled, and the tangled
+file is compiled.
+
+#+BEGIN_SRC emacs-lisp
+(defun tangle-init ()
+ "If the current buffer is 'init.org' the code-blocks are
+ tangled, and the tangled file is compiled."
+  (when (equal (buffer-file-name)
+               (expand-file-name (concat user-emacs-directory "config.org")))
+    ;; Avoid running hooks when tangling.
+    (let ((prog-mode-hook nil))
+      (org-babel-tangle))))
+
+(add-hook 'after-save-hook 'tangle-init)
+#+END_SRC
+
+* Bootstrap
+
+** Use better defaults
+
+Tidying up the UI elements.
+
+#+BEGIN_SRC emacs-lisp
+(when window-system
+  (blink-cursor-mode 0)                           ; Disable the cursor blinking
+  (scroll-bar-mode 0)                             ; Disable the scroll bar
+  (tool-bar-mode 0)                               ; Disable the tool bar
+  (tooltip-mode 0))                               ; Disable the tooltips
+#+END_SRC
+
+Personal preference for better defaults.
+
+#+BEGIN_SRC emacs-lisp
+(setq-default
+  ad-redefinition-action 'accept                  ; Silence warnings for redefinition
+  auto-window-vscroll nil                         ; Lighten vertical scroll
+  cursor-in-non-selected-windows t                ; Hide the cursor in inactive windows
+  display-time-default-load-average nil           ; Don't display load average
+  display-time-format "%k:%M"                     ; Format the time string
+  fill-column 80                                  ; Set width for automatic line breaks
+  frame-title-format '("%b - [%f]")               ; Set frame title format
+  help-window-select t                            ; Focus new help windows when opened
+  indent-tabs-mode nil                            ; Stop using tabs to indent
+  inhibit-startup-screen t                        ; Disable start-up screen
+  initial-scratch-message ""                      ; Empty the initial *scratch* buffer
+  scroll-conservatively most-positive-fixnum      ; Always scroll by one line
+  scroll-margin 10                                ; Add a margin when scrolling vertically
+  select-enable-clipboard t                       ; Merge system's and Emacs' clipboard
+  sentence-end-double-space nil                   ; End a sentence after a dot and a space
+  show-paren-delay 0                              ; No delay before showing paren pair
+  show-trailing-whitespace nil                    ; Display trailing whitespaces
+  tab-width 4                                     ; Set width for tabs
+  use-package-always-ensure t                     ; Avoid the :ensure keyword for each package
+  x-stretch-cursor t)                             ; Stretch cursor to the glyph width
+
+(delete-selection-mode 1)                         ; Replace region when inserting text
+(desktop-save-mode 1)                             ; Saves desktop position on exit
+(display-time-mode 1)                             ; Enable time in the mode-line
+(fset 'yes-or-no-p 'y-or-n-p)                     ; Replace yes/no prompts with y/n
+(global-linum-mode 1)                             ; Enables global line numbers
+(global-subword-mode 1)                           ; Iterate through CamelCase words
+(put 'downcase-region 'disabled nil)              ; Enable downcase-region
+(put 'upcase-region 'disabled nil)                ; Enable upcase-region
+(show-paren-mode 1)                               ; Enable showing paren pair
+
+(cd "~/")                                         ; Move to the user directory
+#+END_SRC
+
+Garbage-collect on focus-out, Emacs /should/ feel snappier.
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'focus-out-hook #'garbage-collect)
+#+END_SRC
+
+** Backup Handling
+
+Currently have no need for backups, hence disabling.
+
+#+BEGIN_SRC emacs-lisp
+(setq
+  auto-save-default nil
+  make-backup-files nil)
+#+END_SRC
+
+** Load =.custom.el=
+
+One is able to use the customization interface that is bundled within Emacs. It
+is meant to help people who are not familiar with Emacs Lisp in the
+configuration of Emacs itself. By default, changes in the customization will be
+automatically detected and appended at the end of the configuration file,
+=init.el=.
+
+Since that in my case, the actual configuration file is a new one, crafted by
+=org-mode=, adding code at the end of =init.el= might mess things up. The
+following tells Emacs to add extra code in another file that would be then
+loaded, if existing.
+
+#+BEGIN_SRC emacs-lisp
+(setq-default custom-file (expand-file-name ".custom.el" user-emacs-directory))
+(when (file-exists-p custom-file)
+  (load custom-file t))
+#+END_SRC
+
+** Delighted Settings
+
+Configure visibility of major/minor modes in mode line. Use =C-h f= to identify
+name of the library associated.
+
+#+BEGIN_SRC emacs-lisp
+(delight '((org-indent-mode nil org-indent)
+           (auto-revert-mode nil autorevert)
+           (subword-mode nil subword)))
+#+END_SRC
+
+* Theme
+
+Declare fonts, and load [[https://github.com/arcticicestudio/nord-emacs][Nord]] theme with spaceline.
+
+#+BEGIN_SRC emacs-lisp
+(set-frame-font "Hack 10")
+(set-fontset-font "fontset-default" 'han (font-spec 
+                                           :family "Source Han Sans HW TC Regular"
+                                           :size 15))
+
+(use-package nord-theme
+  :config
+  (load-theme 'nord t)
+  (add-to-list 'custom-theme-load-path (expand-file-name "~/.emacs.d/themes/"))
+  (setq nord-comment-brightness 20))
+
+(use-package spaceline
+  :config
+  (require 'spaceline-config)
+  (spaceline-spacemacs-theme)
+  (setq spaceline-minor-modes-separator " "))
+#+END_SRC
+
+* Features
+
+** Auto-Completion
+
+Auto-completion at point. Display a small pop-in containing the candidates.
+
+#+BEGIN_QUOTE
+Company is a text completion framework for Emacs. The name stands for "complete
+anything". It uses pluggable back-ends and front-ends to retrieve and display
+completion candidates.
+
+[[http://company-mode.github.io/][Dmitry Gutov]]
+#+END_QUOTE
+
+#+BEGIN_SRC emacs-lisp
+(use-package company
+  :defer 1
+  :delight
+  :config
+  (global-company-mode 1)
+  (setq-default
+   company-idle-delay .2
+   company-minimum-prefix-length 1
+   company-require-match nil
+   company-tooltip-align-annotations t))
+#+END_SRC
+
+** Buffers and Windows
+
+#+BEGIN_QUOTE
+
+Don't =kill-buffer=, =kill-this-buffer= instead.
+
+[[http://pragmaticemacs.com/emacs/dont-kill-buffer-kill-this-buffer-instead/][Pragmatic Emacs]]
+#+END_QUOTE
+
+#+BEGIN_SRC emacs-lisp
+(defun me/kill-this-buffer ()
+  "Kill the current buffer."
+  (interactive)
+  (kill-buffer (current-buffer)))
+
+(global-set-key (kbd "C-x k") 'me/kill-this-buffer)
+#+END_SRC
+
+Allow undo's and redo's with window configurations.
+
+#+BEGIN_QUOTE
+Winner mode is a global minor mode that records the changes in the window
+configuration (i.e. how the frames are partitioned into windows) so that the
+changes can be "undone" using the command =winner-undo=.  By default this one is
+bound to the key sequence ctrl-c left.  If you change your mind (while undoing),
+you can press ctrl-c right (calling =winner-redo=).
+
+[[https://github.com/emacs-mirror/emacs/blob/master/lisp/winner.el][Ivar Rummelhoff]]
+#+END_QUOTE
+
+#+BEGIN_SRC emacs-lisp
+(use-package winner
+  :delight
+  :defer 1
+  :config (winner-mode 1))
+#+END_SRC
+
+** Helm
+
+Interactive completion
+
+#+BEGIN_SRC emacs-lisp
+(use-package helm
+  :delight
+  :config
+  (require 'helm)
+  (require 'helm-config)
+  (helm-mode 1)
+  (helm-autoresize-mode 1)
+  (setq
+    helm-follow-mode-persistent t
+    helm-M-x-fuzzy-match t)
+  (global-set-key (kbd "M-x") 'helm-M-x)
+  (global-set-key (kbd "M-y") 'helm-show-kill-ring)
+  (global-set-key (kbd "C-c h") 'helm-mini)
+  (global-set-key (kbd "C-x C-f") 'helm-find-files)
+  (global-set-key (kbd "C-x b") 'helm-buffers-list)
+  (global-set-key (kbd "C-x C-b") 'helm-buffers-list)
+  (global-set-key (kbd "C-x c o") 'helm-occur))
+#+END_SRC
+
+** Magit
+
+For Github version control
+
+#+BEGIN_SRC emacs-lisp
+(use-package magit)
+#+END_SRC
+
+** QoL Packages
+
+Separate section to consolidate smaller QoL packages.
+
+*** which-key
+
+Aids with learning emacs commands
+
+#+BEGIN_SRC emacs-lisp
+(use-package which-key
+  :delight
+  :config
+  (which-key-mode)
+  (setq which-key-idle-delay 0.6))
+#+END_SRC
+
+* Org
+
+** Org Configurations
+
+Org related better defaults.
+
+#+BEGIN_SRC emacs-lisp
+(use-package org
+  :delight org-mode "Org"
+  :hook
+  (org-mode . toc-org-enable)
+  :config
+  (setq-default
+    org-agenda-files '("~/org")                   ; Location of org agenda files
+    org-directory "~/org"                         ; Location of org files
+    org-log-done t                                ; Timestamp tasks done
+    org-log-into-drawer t                         ; Record state changes into drawer
+    org-startup-folded nil                        ; Expand all headlines on startup
+    org-startup-indented t                        ; Indent org headlines
+    org-support-shift-select t))                  ; Allow shift selection with arrows
+#+END_SRC
+
+Shortcuts for org.
+
+#+BEGIN_SRC emacs-lisp
+(define-key global-map "\C-cl" 'org-store-link)
+(define-key global-map "\C-ca" 'org-agenda)
+#+END_SRC
+
+Automatically updates the table of contents. Add =:TOC:= tab to a headline.
+
+#+BEGIN_SRC emacs-lisp
+(use-package toc-org :after org)
+#+END_SRC
+
+While writing this configuration file in Org mode, I have to write
+code blocks all the time. Org has templates, so doing =<s TAB= creates
+a source code block. Here I create a custom template for emacs-lisp
+specifically. So, =<el TAB= creates the Emacs lisp code block and puts
+the cursor inside.
+
+#+BEGIN_SRC emacs-lisp
+(eval-after-load 'org
+  '(progn
+    (add-to-list 'org-structure-template-alist '("el" "#+BEGIN_SRC emacs-lisp\n?\n#+END_SRC"))
+    ))
+#+END_SRC
+
+Quickly open to-do and init files with Esc-Esc-letter.
+
+#+BEGIN_SRC emacs-lisp
+(global-set-key (kbd "\e\em") (lambda () (interactive) (find-file "~/org/todo.org")))
+(global-set-key (kbd "\e\ec") (lambda () (interactive) (find-file "~/.emacs.d/config.org")))
+#+END_SRC
+
+** Holidays
+
+Define Singapore public holidays.
+
+#+BEGIN_SRC emacs-lisp
+(setq holiday-general-holidays
+  '((holiday-fixed 1  1  "New Year's Day")
+    (holiday-fixed 2  16 "Chinese New Year")
+    (holiday-fixed 2  17 "Chinese New Year")
+    (holiday-fixed 3  30 "Good Friday")
+    (holiday-fixed 5  1  "Labour Day")
+    (holiday-fixed 5  29 "Vesak Day")
+    (holiday-fixed 6  15 "Hari Raya Puasa")
+    (holiday-fixed 8  9  "National Day")
+    (holiday-fixed 8  22 "Hari Raya Haji")
+    (holiday-fixed 11 6  "Deepavali")
+    (holiday-fixed 12 25 "Christmas Day")))
+
+(setq holiday-local-holidays nil
+      holiday-solar-holidays nil
+      holiday-bahai-holidays nil
+      holiday-christian-holidays nil
+      holiday-hebrew-holidays nil
+      holiday-islamic-holidays nil
+      holiday-oriental-holidays nil
+      holiday-other-holidays nil)
+
+(setq org-agenda-include-diary t)
+#+END_SRC
